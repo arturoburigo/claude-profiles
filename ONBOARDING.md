@@ -27,7 +27,8 @@ This is idempotent — safe to run again later. It will:
 - seed a default `personal` profile if `profiles.d/` is empty
 - symlink `shared/CLAUDE.md` and `shared/statusline-command.sh` into `~/.claude/`
 - symlink every skill under `shared/skills/` into `~/.claude/skills/`
-- render `~/.claude/settings.json` from `settings.json.example` + `.env`
+- merge `env.SOURCEBOT_TOKEN` and `statusLine` from `settings.json.example` + `.env` into `~/.claude/settings.json` (other existing keys — hooks, permissions, enabledPlugins — are preserved, not replaced)
+- mirror all of the above into every other profile's config dir (e.g. `~/.claude-work`)
 - install/update the `claude()` function in `~/.zshrc` and `~/.bashrc`
 
 If any of those targets already have real (non-symlink) content, `install.sh`

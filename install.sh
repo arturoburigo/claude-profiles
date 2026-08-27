@@ -43,7 +43,7 @@ link_shared_item() {
 }
 
 link_shared_files() {
-	log "Linking shared config..."
+	log "Linking shared config into $BASE_DIR..."
 	link_shared_item "$REPO_DIR/shared/CLAUDE.md" "$BASE_DIR/CLAUDE.md"
 	link_shared_item "$REPO_DIR/shared/statusline-command.sh" "$BASE_DIR/statusline-command.sh"
 
@@ -56,9 +56,35 @@ link_shared_files() {
 	done
 }
 
-# settings.json holds secrets (e.g. SOURCEBOT_TOKEN), so it's generated from
-# settings.json.example + .env rather than symlinked — the real file never
-# touches git.
+# Profiles other than the default one (e.g. ~/.claude-betha) don't hold their
+# own copy of the shared files — they mirror BASE_DIR, one hop away, the same
+# way this was done by hand before this repo existed. Runs after
+# render_settings_json so BASE_DIR/settings.json already exists to mirror.
+mirror_shared_files_into_other_profiles() {
+	local conf_file
+	for conf_file in "$PROFILES_DIR"/*.conf; do
+		[ -f "$conf_file" ] || continue
+		local PROFILE_CONFIG_DIR=""
+		# shellcheck source=/dev/null
+		source "$conf_file"
+		[ -z "$PROFILE_CONFIG_DIR" ] && continue
+		[ "$PROFILE_CONFIG_DIR" = "$BASE_DIR" ] && continue
+
+		log "Mirroring shared config into $PROFILE_CONFIG_DIR..."
+		mkdir -p "$PROFILE_CONFIG_DIR"
+		link_shared_item "$BASE_DIR/CLAUDE.md" "$PROFILE_CONFIG_DIR/CLAUDE.md"
+		link_shared_item "$BASE_DIR/statusline-command.sh" "$PROFILE_CONFIG_DIR/statusline-command.sh"
+		link_shared_item "$BASE_DIR/skills" "$PROFILE_CONFIG_DIR/skills"
+		link_shared_item "$BASE_DIR/settings.json" "$PROFILE_CONFIG_DIR/settings.json"
+	done
+}
+
+# settings.json can hold secrets (e.g. SOURCEBOT_TOKEN) and, on a machine
+# with an existing Claude Code setup, real content this repo doesn't manage
+# (hooks, permissions, enabledPlugins). So this MERGES the managed keys
+# (env.SOURCEBOT_TOKEN, statusLine) from settings.json.example + .env into
+# whatever is already at BASE_DIR/settings.json, instead of replacing it —
+# and it's never symlinked, so the real file never touches git.
 render_settings_json() {
 	log "Rendering settings.json..."
 	local env_file="$REPO_DIR/.env"
@@ -74,9 +100,19 @@ render_settings_json() {
 	source "$env_file"
 	set +a
 
-	jq --arg token "${SOURCEBOT_TOKEN:-}" '.env.SOURCEBOT_TOKEN = $token' \
-		"$REPO_DIR/settings.json.example" >"$BASE_DIR/settings.json"
-	log "  rendered $BASE_DIR/settings.json"
+	local target="$BASE_DIR/settings.json"
+	local existing_json="{}"
+	if [ -f "$target" ]; then
+		existing_json="$(cat "$target")"
+		cp "$target" "${target}.bak.$(date +%Y%m%d%H%M%S)"
+	fi
+
+	echo "$existing_json" | jq \
+		--arg token "${SOURCEBOT_TOKEN:-}" \
+		'.env.SOURCEBOT_TOKEN = $token
+		 | .statusLine = {"type": "command", "command": "~/.claude/statusline-command.sh"}' \
+		>"$target"
+	log "  merged env.SOURCEBOT_TOKEN and statusLine into $target (other existing keys preserved)"
 }
 
 # profiles.d/*.conf is machine-local (gitignored) — a fresh clone starts
@@ -147,6 +183,8 @@ update_shell_rc_block() {
 	local rc_file="$1" new_block="$2"
 	[ -f "$rc_file" ] || return 0
 
+	cp "$rc_file" "${rc_file}.bak.$(date +%Y%m%d%H%M%S)"
+
 	local tmp_file
 	tmp_file=$(mktemp)
 	if grep -qF "$SHELL_BLOCK_BEGIN" "$rc_file"; then
@@ -184,6 +222,7 @@ main() {
 	bootstrap_default_profile
 	link_shared_files
 	render_settings_json
+	mirror_shared_files_into_other_profiles
 	install_shell_function
 
 	log ""
