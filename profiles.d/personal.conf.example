@@ -1,0 +1,11 @@
+# Copy this file, rename it (e.g. work.conf), and edit the values below —
+# or just ask the "new-profile" skill to do it for you interactively.
+PROFILE_NAME="personal"
+PROFILE_COMMAND="p"
+PROFILE_CONFIG_DIR="$HOME/.claude"
+PROFILE_LABEL="👤 Personal"
+PROFILE_COLOR="FF8700"
+PROFILE_IS_DEFAULT=true
+# Extra flags appended to every `claude` invocation for this profile, e.g.
+# "--dangerously-skip-permissions". Leave empty for the default behavior.
+PROFILE_EXTRA_CLAUDE_FLAGS=""

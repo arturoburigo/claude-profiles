@@ -1,0 +1,9 @@
+{
+  "env": {
+    "SOURCEBOT_TOKEN": ""
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline-command.sh"
+  }
+}
